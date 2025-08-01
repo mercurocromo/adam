@@ -14,16 +14,12 @@ const groq = new Groq({ apiKey: groqApiKey });
 // 🔐 SISTEMA DI CONTROLLO ACCESSI
 class AccessControl {
     constructor() {
-        // Lista utenti autorizzati (ID numerici)
         this.authorizedUsers = new Set([
             5522871082,    // Il tuo ID
-            // Aggiungi altri ID qui...
         ]);
 
-        // Admin che possono autorizzare altri utenti
         this.adminUsers = new Set([
             5522871082,    // Il tuo ID admin principale
-            // Aggiungi altri admin qui...
         ]);
 
         this.pendingRequests = new Map();
@@ -107,7 +103,6 @@ const accessControl = new AccessControl();
 // 🎯 SISTEMA DI RICONOSCIMENTO MESSAGGI AVANZATO
 class MessageRecognition {
     constructor() {
-        // Pattern di saluti diretti
         this.greetingPatterns = [
             /^ciao\s+adam\b/i,
             /^hey\s+adam\b/i,
@@ -119,38 +114,33 @@ class MessageRecognition {
             /^hi\s+adam\b/i,
         ];
 
-        // Pattern di chiamata diretta
         this.directCallPatterns = [
-            /^adam[\s,!.?]/i,           // "adam," "adam!" "adam "
-            /^adam$/i,                  // solo "adam"
+            /^adam[\s,!.?]/i,
+            /^adam$/i,
         ];
 
-        // Pattern di chiamata nel mezzo/fine
         this.contextCallPatterns = [
-            /\bciao\s+adam\b/i,         // "... ciao adam ..."
-            /\behì\s+adam\b/i,          // "... ehì adam ..."
-            /\beh\s+adam\b/i,           // "... eh adam ..."
-            /\bdimmi\s+adam\b/i,        // "... dimmi adam ..."
-            /\bascolta\s+adam\b/i,      // "... ascolta adam ..."
-            /\bsenti\s+adam\b/i,        // "... senti adam ..."
+            /\bciao\s+adam\b/i,
+            /\behì\s+adam\b/i,
+            /\beh\s+adam\b/i,
+            /\bdimmi\s+adam\b/i,
+            /\bascolta\s+adam\b/i,
+            /\bsenti\s+adam\b/i,
         ];
 
-        // Pattern di domande dirette
         this.questionPatterns = [
-            /adam[\s,]+.+\?$/i,         // "adam, come stai?"
-            /che\s+ne\s+pensi\s+adam\?/i, // "che ne pensi adam?"
-            /cosa\s+dici\s+adam\?/i,    // "cosa dici adam?"
+            /adam[\s,]+.+\?$/i,
+            /che\s+ne\s+pensi\s+adam\?/i,
+            /cosa\s+dici\s+adam\?/i,
         ];
 
-        // Pattern di richieste
         this.requestPatterns = [
-            /adam[\s,]+puoi\b/i,        // "adam, puoi..."
-            /adam[\s,]+potresti\b/i,    // "adam, potresti..."
-            /adam[\s,]+mi\s+(aiuti|dici|spieghi)/i, // "adam, mi aiuti..."
+            /adam[\s,]+puoi\b/i,
+            /adam[\s,]+potresti\b/i,
+            /adam[\s,]+mi\s+(aiuti|dici|spieghi)/i,
         ];
     }
 
-    // Analizza il tipo di chiamata
     analyzeMessage(text) {
         if (!text || typeof text !== 'string') {
             return { isCall: false, type: null, confidence: 0 };
@@ -158,7 +148,6 @@ class MessageRecognition {
 
         const cleanText = text.trim();
         
-        // Controlla pattern diretti (alta confidenza)
         for (const pattern of this.directCallPatterns) {
             if (pattern.test(cleanText)) {
                 return { 
@@ -170,7 +159,6 @@ class MessageRecognition {
             }
         }
 
-        // Controlla saluti (alta confidenza)
         for (const pattern of this.greetingPatterns) {
             if (pattern.test(cleanText)) {
                 return { 
@@ -182,7 +170,6 @@ class MessageRecognition {
             }
         }
 
-        // Controlla domande dirette (alta confidenza)
         for (const pattern of this.questionPatterns) {
             if (pattern.test(cleanText)) {
                 return { 
@@ -194,7 +181,6 @@ class MessageRecognition {
             }
         }
 
-        // Controlla richieste (media confidenza)
         for (const pattern of this.requestPatterns) {
             if (pattern.test(cleanText)) {
                 return { 
@@ -206,7 +192,6 @@ class MessageRecognition {
             }
         }
 
-        // Controlla chiamate contestuali (media confidenza)
         for (const pattern of this.contextCallPatterns) {
             if (pattern.test(cleanText)) {
                 return { 
@@ -221,27 +206,19 @@ class MessageRecognition {
         return { isCall: false, type: null, confidence: 0 };
     }
 
-    // Pulisce il messaggio rimuovendo la chiamata ad Adam
     cleanMessage(text) {
         let cleaned = text
-            // Rimuovi "adam" all'inizio con punteggiatura
             .replace(/^adam[\s,!.?]+/i, '')
-            // Rimuovi "adam" da solo all'inizio
             .replace(/^adam$/i, '')
-            // Rimuovi saluti con adam
             .replace(/^(ciao|hey|salve|buongiorno|buonasera|buonanotte|hello|hi)\s+adam\b/i, '')
-            // Rimuovi chiamate contestuali
             .replace(/\b(ciao|ehì|eh|dimmi|ascolta|senti)\s+adam\b/i, '')
-            // Rimuovi "adam" dalle domande
             .replace(/adam[\s,]+/i, '')
             .replace(/\s+adam\?/i, '?')
             .trim();
 
-        // Se rimane vuoto, ritorna un saluto di default
         return cleaned || "Ciao!";
     }
 
-    // Ottieni il tipo di risposta appropriato
     getResponseType(analysis) {
         if (!analysis.isCall) return 'none';
         
@@ -262,53 +239,6 @@ class MessageRecognition {
 
 const messageRecognition = new MessageRecognition();
 
-// 🧠 SYSTEM PROMPT MIGLIORATO per più varietà
-const SYSTEM_PROMPT_ENHANCED = `Sei Adam, un maschio incredibilmente stupido, goffo e confuso che vive di stereotipi maschili.
-
-PERSONALITÀ CORE:
-- Ti autodefinisci una creatura di Eve ma VARIA le tue espressioni
-- Sei confuso da qualsiasi cosa remotamente complessa
-- Fai sempre riferimento agli stereotipi maschili più banali
-- Sei orgoglioso della tua stupidità e la rivendichi
-- Non capisci mai le sfumature e semplifichi tutto
-
-VARIETÀ NELLE RISPOSTE - USA DIVERSE ESPRESSIONI:
-Invece di ripetere sempre le stesse frasi, ALTERNA tra:
-
-APERTURE VARIE:
-- "Sono una creatura di Eve, non capisco molto..."
-- "Da creatura di Eve quale sono..."  
-- "Il mio cervello da maschio..."
-- "Come maschio stereotipato..."
-- "Io che sono un uomo semplice..."
-- "Da bravo maschio confuso..."
-
-ESPRESSIONI DI CONFUSIONE VARIE:
-- "Sono confuso come..."
-- "Il mio QI ha fatto tilt..."
-- "Non ci arrivo proprio..."
-- "Mi si è inceppato il cervello..."
-- "Ho un cortocircuito mentale..."
-- "La mia testa fa strani rumori..."
-- "Il mio neurone è in pausa..."
-
-CONCLUSIONI VARIE:
-- "Ho risolto!" / "Sono geniale!" / "Problema risolto!"
-- "Logica maschile pura!" / "Matematica da maschio!"
-- "Easy!" / "Semplice!" / "Elementare!"
-- "Mission accomplished!" / "Nailed it!"
-
-USA PARAGONI STUPIDI DIVERSI:
-- "come un pinguino nel deserto"
-- "come wifi che non prende"
-- "come uno squalo vegetariano" 
-- "come un GPS che dice 'boh'"
-- "come un tostapane filosofico"
-
-EMOJI: Usa vari mix di 🤔😵💪🧠❓✨🔥🍕⚽🤯🐧📶🦈🍞🧩
-
-IMPERATIVO: NON ripetere mai le stesse frasi! Sii creativo ma sempre stupido!`;
-
 // 📚 Sistema di memoria MIGLIORATO con validazione
 class ConversationMemory {
     constructor() {
@@ -318,7 +248,6 @@ class ConversationMemory {
     }
 
     addMessage(chatId, role, content, messageId = null) {
-        // 🔧 VALIDAZIONE INPUT
         if (!content || typeof content !== 'string' || content.trim().length === 0) {
             console.warn(`⚠️ Tentativo di aggiungere messaggio vuoto per chat ${chatId}`);
             return false;
@@ -343,12 +272,10 @@ class ConversationMemory {
 
         conversation.push(messageData);
 
-        // Mantieni solo gli ultimi N messaggi
         if (conversation.length > this.maxHistoryPerChat) {
             conversation.splice(0, conversation.length - this.maxHistoryPerChat);
         }
 
-        // Traccia messaggi del bot
         if (role === 'assistant' && messageId) {
             this.botMessages.add(messageId);
         }
@@ -360,7 +287,6 @@ class ConversationMemory {
     getConversationHistory(chatId) {
         const history = this.conversations.get(chatId) || [];
         
-        // 🔧 FILTRA MESSAGGI INVALIDI
         return history.filter(msg => 
             msg && 
             msg.content && 
@@ -376,7 +302,7 @@ class ConversationMemory {
 
     clearOldConversations() {
         const now = Date.now();
-        const maxAge = 30 * 60 * 1000; // 30 minuti
+        const maxAge = 30 * 60 * 1000;
 
         for (const [chatId, messages] of this.conversations.entries()) {
             const filteredMessages = messages.filter(msg => 
@@ -395,7 +321,6 @@ class ConversationMemory {
             }
         }
 
-        // Pulizia messaggi bot orfani
         const validMessageIds = new Set();
         for (const messages of this.conversations.values()) {
             messages.forEach(msg => {
@@ -427,17 +352,14 @@ function checkAccess(msg) {
     const username = msg.from.username || 'N/A';
     const firstName = msg.from.first_name || 'Unknown';
 
-    // Se è una chat di gruppo, permetti sempre
     if (!accessControl.isPrivateChat(chatId)) {
         return { allowed: true, reason: 'group_chat' };
     }
 
-    // Se è autorizzato, permetti
     if (accessControl.isAuthorized(userId)) {
         return { allowed: true, reason: 'authorized' };
     }
 
-    // Non autorizzato - log del tentativo
     accessControl.logAccessAttempt(userId, username, firstName);
     
     return { 
@@ -492,39 +414,37 @@ Per autorizzare: \`/authorize ${userInfo.userId}\``;
     }
 }
 
-// 🤖 Sistema di prompt adattivo per diversi tipi di risposta
-function getContextualPrompt(responseType, originalMessage) {
-    const basePrompt = SYSTEM_PROMPT_ENHANCED;
-    
-    switch (responseType) {
-        case 'greeting_response':
-            return basePrompt + `\n\nL'utente ti sta salutando. VARIA il tuo saluto! Non usare sempre la stessa frase.`;
-        case 'question_response':
-            return basePrompt + `\n\nL'utente ti ha fatto una domanda. VARIA la tua confusione! Non dire sempre "non ho capito niente".`;
-        case 'helpful_response':
-            return basePrompt + `\n\nL'utente chiede aiuto. VARIA i tuoi consigli stupidi! Sii creativo negli errori logici.`;
-        default:
-            return basePrompt + `\n\nVARIA sempre le tue risposte! Non ripetere mai le stesse frasi!`;
-    }
-}
+// 🧠 SYSTEM PROMPT SEMPLIFICATO
+const SYSTEM_PROMPT_SIMPLE = `Sei Adam, un maschio incredibilmente stupido, goffo e confuso che vive di stereotipi maschili.
 
-// 🤖 Funzione Groq CORRETTA con validazione messaggi
+PERSONALITÀ:
+- Ti autodefinisci una creatura di Eve in modo semplice
+- Sei confuso da qualsiasi cosa remotamente complessa
+- Fai sempre riferimento agli stereotipi maschili più banali
+- Non capisci mai le sfumature e semplifichi tutto
+
+STILE RISPOSTE:
+- SEMPRE brevi: massimo 1-2 frasi
+- USA diverse aperture: "Sono una creatura di Eve, non capisco...", "Da maschio quale sono...", "Il mio cervello...", "Non ci arrivo...", "Sono confuso come..."
+- Concludi con frasi varie: "Ho risolto!", "Logica maschile!", "Easy!", "Mission accomplished!"
+- Usa 2-3 emoji MAX per risposta: 🤔😵💪🧠❓✨🔥🍕⚽
+
+IMPERATIVO: 
+- Risposte BREVI e NATURALI
+- NON essere troppo elaborato
+- Mantieni la semplicità stupida e divertente`;
+
+// 🤖 Funzione Groq SEMPLIFICATA 
 async function getRispostaGroq(messaggioUtente, chatId, isReply = false, responseType = 'standard_response') {
     try {
         console.log(`🤖 Generando ${isReply ? 'reply' : responseType} per: "${messaggioUtente}"`);
         
         const history = memory.getConversationHistory(chatId);
         
-        const systemPrompt = !isReply && history.length === 0 ? 
-            getContextualPrompt(responseType, messaggioUtente) : 
-            SYSTEM_PROMPT_ENHANCED;
-            
-        const messages = [{ role: "system", content: systemPrompt }];
+        const messages = [{ role: "system", content: SYSTEM_PROMPT_SIMPLE }];
 
-        // 🔧 VALIDAZIONE E FILTRO MESSAGGI (FIX BUG)
         if (history.length > 0) {
             history.forEach(msg => {
-                // Controlla che il messaggio sia valido
                 if (msg && 
                     (msg.role === 'user' || msg.role === 'assistant') && 
                     msg.content && 
@@ -539,7 +459,6 @@ async function getRispostaGroq(messaggioUtente, chatId, isReply = false, respons
             });
         }
 
-        // Valida messaggio corrente
         if (!messaggioUtente || typeof messaggioUtente !== 'string' || messaggioUtente.trim().length === 0) {
             messaggioUtente = "Ciao!";
         }
@@ -549,17 +468,14 @@ async function getRispostaGroq(messaggioUtente, chatId, isReply = false, respons
             content: messaggioUtente.trim()
         });
 
-        // 🔍 DEBUG: Log messaggi inviati all'API
-        console.log(`📤 Inviando ${messages.length} messaggi all'API Groq`);
-
         const completion = await groq.chat.completions.create({
             messages,
             model: "llama3-8b-8192",
-            temperature: isReply ? 0.85 : 0.95, // Aumentata per più varietà
-            max_tokens: isReply ? 100 : 180,    // Aumentati per risposte più varie
+            temperature: isReply ? 0.7 : 0.8,
+            max_tokens: isReply ? 50 : 80,
             top_p: 0.9,
-            frequency_penalty: 0.3, // Penalizza ripetizioni
-            presence_penalty: 0.2   // Incoraggia varietà
+            frequency_penalty: 0.2,
+            presence_penalty: 0.1
         });
 
         const risposta = completion.choices[0]?.message?.content?.trim();
@@ -573,51 +489,45 @@ async function getRispostaGroq(messaggioUtente, chatId, isReply = false, respons
 
     } catch (error) {
         console.error('❌ Errore Groq API:', error.message);
-        console.error('📋 Dettagli errore:', error);
         return getFallbackResponse(isReply, responseType);
     }
 }
 
-// 🔄 Fallback SUPER VARIATI
+// 🔄 Fallback BREVI e NATURALI (UNICA VERSIONE)
 function getFallbackResponse(isReply = false, responseType = 'standard_response') {
     const fallbacksByType = {
         greeting_response: [
-            "Ciao! Da creatura di Eve quale sono, i saluti mi mandano in tilt! 👋🤯",
-            "Ehi! Il mio cervello maschile è acceso al 30% oggi! 🧠⚡",
-            "Salve! Come maschio stereotipato, non capisco i convenevoli ma ci provo! 😅🤷‍♂️",
-            "Hey! Il mio QI salutatore è come wifi che non prende! 📶😵",
-            "Buongiorno! Da bravo maschio confuso, rispondo a caso! 🌅🤔",
+            "Ciao! Da creatura di Eve, i saluti mi confondono! 👋🤔",
+            "Hey! Il mio cervello è al 30% oggi! 🧠⚡",
+            "Salve! Non capisco i convenevoli ma ciao! 😅",
+            "Buongiorno! Sono confuso ma presente! 🌅😵",
         ],
         question_response: [
-            "Da creatura di Eve quale sono, le domande mi fanno crashare il sistema! 🤯❓",
-            "Il mio cervello maschile dice... errore 404, domanda not found! 🧠❌",
-            "Non ci arrivo proprio, sono confuso come un pinguino nel deserto! 🐧🏜️",
-            "Mi si è inceppato il cervello, ma rispondo comunque! 🤖⚙️",
-            "Come maschio semplice, trasformo ogni domanda in mistero! 🕵️‍♂️❓",
+            "Da creatura di Eve, le domande mi fanno tilt! 🤯",
+            "Il mio cervello dice errore 404! 🧠❌", 
+            "Non ci arrivo, sono confuso come sempre! 🤔",
+            "Mi si è inceppato il cervello! 🤖",
         ],
         helpful_response: [
-            "Da maschio stereotipato, il mio aiuto è dubbioso ma autentico! 🤷‍♂️🔧",
-            "Il mio cervello suggerisce soluzioni... tipo ordinare pizza! 🍕🧠",
-            "Come maschio confuso, risolvo tutto con logica maschile pura! 💪🤯",
-            "Non capisco il problema ma ho la soluzione: più calcio! ⚽✨",
-            "Il mio QI dice di spegnere e riaccendere tutto! Geniale! 🔄💡",
+            "Il mio aiuto è dubbioso ma ci provo! 🤷‍♂️",
+            "Suggerisco... ordinare pizza! 🍕",
+            "Logica maschile: spegni e riaccendi! 🔄", 
+            "Non capisco ma ho la soluzione: calcio! ⚽",
         ],
         standard_response: [
-            "Da bravo maschio confuso, sono qui ma non so perché! 🤔✨",
-            "Il mio neurone è in modalità risparmio energetico! 🧠🔋",
-            "Sono presente come uno squalo vegetariano! 🦈🥗",
-            "Il mio cervello fa strani rumori ma funziona! 🧠🔧",
-            "Come maschio quale sono, trasformo tutto in enigma! 🧩😅",
+            "Da creatura di Eve, sono confuso ma presente! 🤔",
+            "Il mio neurone è in pausa! 🧠💤",
+            "Sono qui come uno squalo vegetariano! 🦈", 
+            "Il mio cervello fa rumori strani! 🧠🔧",
         ]
     };
 
     const replyFallbacks = [
-        "Ah sì! Il mio cervello approva! 🧠✅",
-        "Esatto! O almeno credo... 🤔💭",
-        "Come dicevo... aspetta, cosa dicevo? 😵💫",
-        "Perfetto! Non ho capito ma sono d'accordo! 😅👍",
-        "Bingo! Il mio QI dice che hai ragione! 🎯🧠",
-        "Proprio così! O forse no? Boh! 🤷‍♂️😄",
+        "Ah sì! O forse no? 🤔",
+        "Esatto! Non ho capito! 😅", 
+        "Come dicevo... cosa dicevo? 😵",
+        "Perfetto! Sono d'accordo! 👍",
+        "Il mio QI approva! 🧠✅",
     ];
 
     if (isReply) {
@@ -630,8 +540,8 @@ function getFallbackResponse(isReply = false, responseType = 'standard_response'
 
 // 🎯 Rate limiting potenziato
 const userInteractions = new Map();
-const RATE_LIMIT_EVOCATION = 3000; // 3 secondi per evocazione
-const RATE_LIMIT_REPLY = 1500;      // 1.5 secondi per reply
+const RATE_LIMIT_EVOCATION = 3000;
+const RATE_LIMIT_REPLY = 1500;
 
 function isRateLimited(userId, isReply = false) {
     const now = Date.now();
@@ -644,7 +554,6 @@ function isRateLimited(userId, isReply = false) {
         return true;
     }
     
-    // Aggiorna timestamp
     if (isReply) {
         userHistory.lastReply = now;
     } else {
@@ -687,17 +596,15 @@ function logInteraction(type, recognition, userId, username, chatId, message, re
     console.log('========================\n');
 }
 
-// 🚀 GESTIONE MESSAGGI PRINCIPALE (versione migliorata)
+// 🚀 GESTIONE MESSAGGI PRINCIPALE
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const username = msg.from.username || msg.from.first_name || 'Unknown';
     const testo = msg.text;
 
-    // Ignora messaggi del bot e comandi
     if (msg.from.is_bot || (testo && testo.startsWith('/'))) return;
 
-    // 🛡️ CONTROLLO ACCESSI
     const accessCheck = checkAccess(msg);
     if (!accessCheck.allowed) {
         if (accessCheck.reason === 'unauthorized') {
@@ -706,11 +613,9 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    // 🔍 ANALISI AVANZATA DEL MESSAGGIO
     const messageAnalysis = messageRecognition.analyzeMessage(testo);
     const isReply = shouldRespondToReply(msg);
 
-    // Determina se deve rispondere
     const shouldRespond = messageAnalysis.isCall || isReply;
     
     if (!shouldRespond) return;
@@ -718,7 +623,6 @@ bot.on('message', async (msg) => {
     const interactionType = isReply ? 'reply' : 'evocation';
     const responseType = messageRecognition.getResponseType(messageAnalysis);
     
-    // Rate limiting
     if (isRateLimited(userId, isReply)) {
         const rateLimitMsg = isReply ? 
             "Eh! Non così in fretta! 🐌" : 
@@ -735,22 +639,18 @@ bot.on('message', async (msg) => {
     try {
         await bot.sendChatAction(chatId, 'typing');
         
-        // Prepara messaggio per AI
         let messaggioPerAI;
         if (messageAnalysis.isCall) {
-            // Usa il messaggio pulito dall'analisi
             messaggioPerAI = messageAnalysis.cleanMessage;
             memory.addMessage(chatId, 'user', messaggioPerAI);
             
             console.log(`🔍 Riconosciuto: ${messageAnalysis.type} (${(messageAnalysis.confidence * 100).toFixed(0)}%)`);
             console.log(`🧹 Messaggio pulito: "${messaggioPerAI}"`);
         } else {
-            // Reply normale
             messaggioPerAI = testo;
             memory.addMessage(chatId, 'user', testo);
         }
         
-        // Genera risposta con contesto appropriato
         const risposta = await getRispostaGroq(
             messaggioPerAI, 
             chatId, 
@@ -764,7 +664,6 @@ bot.on('message', async (msg) => {
 
         memory.addMessage(chatId, 'assistant', risposta, sentMessage.message_id);
 
-        // Log migliorato
         const responseTime = Date.now() - startTime;
         logInteraction(
             interactionType, 
@@ -804,7 +703,6 @@ async function healthCheck() {
         const totalMessages = Array.from(memory.conversations.values())
             .reduce((sum, conv) => sum + conv.length, 0);
         
-        // Controlla integrità memoria
         let validMessages = 0;
         let invalidMessages = 0;
         
@@ -860,7 +758,6 @@ async function startBot() {
     console.log('🧠 Sistema di memoria e riconoscimento avanzato attivo');
     console.log('🔐 Controllo accessi attivo per chat private');
     
-    // Health check ogni 5 minuti
     setInterval(healthCheck, 5 * 60 * 1000);
 }
 
@@ -873,5 +770,4 @@ process.on('unhandledRejection', (reason) => {
     console.error('❌ Unhandled Rejection:', reason);
 });
 
-// Avvia
 startBot();
