@@ -20,7 +20,7 @@ class AdamWebhookService {
             onError: null
         };
         
-        this.();
+        this.setupRoutes();
         this.stats = {
             messagesSent: 0,
             messagesReceived: 0,
