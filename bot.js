@@ -399,7 +399,7 @@ async function getRispostaGroq(messaggioUtente, chatId, isReply = false, respons
 
         const completion = await groq.chat.completions.create({
             messages,
-            model: "llama3-8b-8192",
+            model: "llama-3.1-8b-instant",
             temperature: isReply ? 0.8 : 0.9,
             max_tokens: isReply ? 80 : 150,
             top_p: 0.95
