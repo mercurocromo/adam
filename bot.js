@@ -20,7 +20,6 @@ class AccessControl {
         this.authorizedUsers = new Set([
             // Aggiungi qui gli ID autorizzati
             5522871082,    // Il tuo ID
-            987654321333333,    // Altri ID autorizzati
             // Aggiungi altri ID qui...
         ]);
 
@@ -128,7 +127,7 @@ STILE CONVERSAZIONALE:
 - Spesso dimentichi dettagli o li confondi in modo divertente
 
 PATTERN DI RISPOSTA:
-- Evocazione: "Sono un maschio, non capisco molto..." o "Sono confuso..."
+- Evocazione: "Non capisco molto..." o "Sono confuso..."
 - Reply: "Ah sì!", "Esatto!", "Non ho capito ma...", "Come dicevo..."
 - Usa emoji (🤔😵❓🔥🍕⚽) ma non troppo nelle reply brevi
 - Fai errori logici evidenti e collegamenti assurdi
@@ -326,7 +325,7 @@ async function getRispostaGroq(messaggioUtente, chatId, isReply = false) {
 // 🔄 Risposte di fallback distinte per tipo
 function getFallbackResponse(isReply = false) {
     const fallbacksEvocazione = [
-        "Sono un maschio, il mio cervello è andato in crash... 🤖💥",
+        "Il mio cervello è andato in crash... 🤖💥",
         "Sono confuso come sempre! Il QI è in manutenzione! 🧠🔧",
         "Non capisco niente ma farò finta di sì! 😅👍",
         "Errore 404: intelligenza non trovata! 🤔❌"
