@@ -1,7 +1,6 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const envPath = path.resolve(__dirname, '.env');
-
 const TelegramBot = require('node-telegram-bot-api');
 const Groq = require('groq-sdk');
 
