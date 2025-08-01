@@ -425,7 +425,6 @@ PERSONALITÀ:
 
 STILE RISPOSTE:
 - SEMPRE brevi: massimo 1-2 frasi
-- USA diverse aperture: "Sono una creatura di Eve, non capisco...", "Da maschio quale sono...", "Il mio cervello...", "Non ci arrivo...", "Sono confuso come..."
 - Concludi con frasi varie: "Ho risolto!", "Logica maschile!", "Easy!", "Mission accomplished!"
 - Usa 2-3 emoji MAX per risposta: 🤔😵💪🧠❓✨🔥🍕⚽
 
@@ -497,13 +496,13 @@ async function getRispostaGroq(messaggioUtente, chatId, isReply = false, respons
 function getFallbackResponse(isReply = false, responseType = 'standard_response') {
     const fallbacksByType = {
         greeting_response: [
-            "Ciao! Da creatura di Eve, i saluti mi confondono! 👋🤔",
+            "Ciao! I saluti mi confondono! 👋🤔",
             "Hey! Il mio cervello è al 30% oggi! 🧠⚡",
             "Salve! Non capisco i convenevoli ma ciao! 😅",
             "Buongiorno! Sono confuso ma presente! 🌅😵",
         ],
         question_response: [
-            "Da creatura di Eve, le domande mi fanno tilt! 🤯",
+            "Le domande mi fanno tilt! 🤯",
             "Il mio cervello dice errore 404! 🧠❌", 
             "Non ci arrivo, sono confuso come sempre! 🤔",
             "Mi si è inceppato il cervello! 🤖",
@@ -515,7 +514,7 @@ function getFallbackResponse(isReply = false, responseType = 'standard_response'
             "Non capisco ma ho la soluzione: calcio! ⚽",
         ],
         standard_response: [
-            "Da creatura di Eve, sono confuso ma presente! 🤔",
+            "Sono confuso ma presente! 🤔",
             "Il mio neurone è in pausa! 🧠💤",
             "Sono qui come uno squalo vegetariano! 🦈", 
             "Il mio cervello fa rumori strani! 🧠🔧",
