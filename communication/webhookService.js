@@ -20,7 +20,7 @@ class AdamWebhookService {
             onError: null
         };
         
-        this.setupRoutes();
+        this.();
         this.stats = {
             messagesSent: 0,
             messagesReceived: 0,
@@ -37,7 +37,9 @@ class AdamWebhookService {
         this.app.post('/webhook/eve', (req, res) => {
             try {
                 const { from, message, context, secret, messageType, timestamp } = req.body;
-                
+                console.log(`[ADAM DEBUG] Secret atteso: "${this.config.secret}"`);
+                console.log(`[ADAM DEBUG] Secret ricevuto: "${secret}"`);
+           
                 // Verifica sicurezza
                 if (secret !== this.config.secret) {
                     console.warn('🚫 [WEBHOOK] Tentativo accesso non autorizzato');
