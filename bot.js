@@ -9,6 +9,22 @@ const groqApiKey = process.env.GROQ_API_KEY;
 const bot = new TelegramBot(token, { polling: true });
 const groq = new Groq({ apiKey: groqApiKey });
 
+const { AdamWebhookService } = require('./communication/webhookService');
+const { AdamBotCommunicator } = require('./communication/adamBotCommunicator');
+const communicationConfig = require('./communication/config');
+
+const webhookService = new AdamWebhookService({
+    port: communicationConfig.ADAM.WEBHOOK_PORT,
+    eveWebhookUrl: communicationConfig.ADAM.EVE_URL,
+    secret: communicationConfig.WEBHOOK_SECRET
+});
+const communicator = new AdamBotCommunicator(webhookService, bot, memory);
+
+// Avvia servizio webhook
+webhookService.start().catch(error => {
+    console.error('❌ Errore avvio webhook service:', error);
+});
+
 // 🔐 SISTEMA DI CONTROLLO ACCESSI
 class AccessControl {
     constructor() {
@@ -369,7 +385,7 @@ Battute brevi, logica assurda, sempre confuso ma simpatico!`;
 }
 
 // 🤖 FUNZIONE PRINCIPALE GROQ
-async function getRispostaGroq(messaggioUtente, chatId, isReply = false, responseType = 'standard_response') {
+async function getRispostaGroq(messaggioUtente, chatId, isReply = false, responseType = 'standard_response', messageId = null) {
     try {
         console.log(`🤖 Generando ${isReply ? 'reply' : responseType} per: "${messaggioUtente}"`);
         
@@ -412,6 +428,10 @@ async function getRispostaGroq(messaggioUtente, chatId, isReply = false, respons
         }
 
         console.log(`💬 ${responseType} generata: "${risposta}"`);
+        if (communicator.shouldAskEveForHelp(messaggioUtente, responseType, chatId)) {
+            console.log('🆘 Adam chiede aiuto a Eve...');
+            await communicator.askEveForHelp(messaggioUtente, chatId, messageId, responseType);
+        }
         return risposta;
 
     } catch (error) {
