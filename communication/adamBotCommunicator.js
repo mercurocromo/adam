@@ -1,315 +1,308 @@
-// file: communication/adamBotCommunicator.js
+// file: communication/webhookService.js
+const express = require('express');
+const fetch = require('node-fetch');
 
-class AdamBotCommunicator {
-    constructor(webhookService, botInstance, memory) {
-        this.webhook = webhookService;
-        this.bot = botInstance;
-        this.memory = memory;
-        
-        this.conversationState = new Map();
-        this.setupWebhookCallbacks();
-        
-        // 🎭 CONFIGURAZIONE DIALOGO PUBBLICO
-        this.dialogConfig = {
-            eveHelpProbability: 0.3,           // 30% chance di chiedere aiuto a Eve
-            maxEveMessagesPerChat: 5,          // Max 5 interventi Eve per chat
-            publicConversationChance: 0.8,    // 80% delle volte conversazione pubblica
-            conversationLength: 3,             // Max 3 scambi consecutivi
-            cooldownBetweenDialogs: 120000     // 2 minuti tra dialoghi
+class AdamWebhookService {
+    constructor(config = {}) {
+        this.config = {
+            port: config.port || 3001,
+            eveWebhookUrl: config.eveWebhookUrl || 'http://localhost:3000/webhook/adam',
+            secret: config.secret || 'adam-eve-secret-2024',
+            ...config
         };
         
-        // 👫 TRACKING CONVERSAZIONI PUBBLICHE
-        this.activePublicConversations = new Map();
-        this.lastPublicDialog = new Map(); // Per cooldown per chat
+        this.app = express();
+        this.app.use(express.json({ limit: '10mb' }));
+        this.app.use(express.urlencoded({ extended: true }));
         
-        // 🤖 INFO BOT EVE (da configurare)
-        this.EVE_BOT_USERNAME = '@eve_angolo_bot'; // Sostituisci con username reale di Eve
-        this.EVE_BOT_ID = null; // Verrà rilevato automaticamente
+        this.callbacks = {
+            onMessageFromEve: null,
+            onError: null
+        };
+        
+        this.setupRoutes();
+        this.stats = {
+            messagesSent: 0,
+            messagesReceived: 0,
+            errors: 0,
+            lastActivity: null,
+            uptime: Date.now()
+        };
+        
+        this.server = null;
     }
 
-    setupWebhookCallbacks() {
-        // 📥 GESTIONE COORDINAMENTO DA EVE (webhook privato)
-        this.webhook.onMessageFromEve(async (message, context, messageType) => {
-            await this.handleEveCoordination(message, context, messageType);
-        });
+    setupRoutes() {
+        // 📥 ENDPOINT per ricevere messaggi da Eve
+        this.app.post('/webhook/eve', (req, res) => {
+            try {
+                const { from, message, context, secret, messageType, timestamp } = req.body;
+                
+                // Verifica sicurezza
+                if (secret !== this.config.secret) {
+                    console.warn('🚫 [WEBHOOK] Tentativo accesso non autorizzato');
+                    return res.status(401).json({ 
+                        error: 'Unauthorized',
+                        timestamp: Date.now() 
+                    });
+                }
 
-        this.webhook.onError((error, type) => {
-            console.error(`[COMMUNICATOR] Errore ${type}:`, error.message);
-        });
-    }
-
-    // 📥 GESTIONE COORDINAMENTO PRIVATO DA EVE
-    async handleEveCoordination(message, context, messageType) {
-        try {
-            switch (messageType) {
-                case 'start_public_conversation':
-                    await this.startPublicConversation(context);
-                    break;
+                if (from === 'eve') {
+                    console.log(`📥 [WEBHOOK] Ricevuto da Eve [${messageType}]:`, message);
+                    this.stats.messagesReceived++;
+                    this.stats.lastActivity = Date.now();
                     
-                case 'conversation_context':
-                    // Eve ci invia il contesto per la conversazione pubblica
-                    this.updateConversationContext(context);
-                    break;
+                    // Chiama callback se configurato
+                    if (this.callbacks.onMessageFromEve) {
+                        setImmediate(() => {
+                            this.callbacks.onMessageFromEve(message, context, messageType);
+                        });
+                    }
                     
-                case 'end_conversation':
-                    await this.endPublicConversation(context.chatId);
-                    break;
-                    
-                default:
-                    console.log('[COMMUNICATOR] Coordinamento ricevuto da Eve:', messageType);
+                    res.json({ 
+                        status: 'received', 
+                        timestamp: Date.now(),
+                        adamStatus: 'confused_but_happy',
+                        processed: true
+                    });
+                } else {
+                    res.status(400).json({ 
+                        error: 'Invalid sender',
+                        expected: 'eve',
+                        received: from 
+                    });
+                }
+            } catch (error) {
+                console.error('❌ [WEBHOOK] Errore processing message:', error);
+                this.stats.errors++;
+                
+                if (this.callbacks.onError) {
+                    this.callbacks.onError(error, 'receive_from_eve');
+                }
+                
+                res.status(500).json({ 
+                    error: 'Processing error',
+                    message: error.message 
+                });
             }
-        } catch (error) {
-            console.error('[COMMUNICATOR] Errore handling Eve coordination:', error);
-        }
-    }
-
-    // 🎭 AVVIA CONVERSAZIONE PUBBLICA
-    async startPublicConversation(context) {
-        const chatId = context.originalChatId;
-        
-        this.activePublicConversations.set(chatId, {
-            startTime: Date.now(),
-            exchangeCount: 0,
-            context: context,
-            adamTurn: true // Adam inizia
         });
 
-        console.log(`[COMMUNICATOR] 🎭 Avviata conversazione pubblica in chat ${chatId}`);
+        // 📊 ENDPOINT status dettagliato
+        this.app.get('/status', (req, res) => {
+            res.json({
+                service: 'Adam Webhook Service',
+                status: 'online',
+                version: '1.0.0',
+                uptime: Date.now() - this.stats.uptime,
+                stats: {
+                    ...this.stats,
+                    uptimeFormatted: this.formatUptime(Date.now() - this.stats.uptime)
+                },
+                config: {
+                    port: this.config.port,
+                    eveConnected: !!this.config.eveWebhookUrl,
+                    eveUrl: this.config.eveWebhookUrl
+                },
+                endpoints: [
+                    'POST /webhook/eve - Riceve messaggi da Eve',
+                    'GET /status - Stato servizio',
+                    'GET /health - Health check'
+                ]
+            });
+        });
+
+        // ❤️ ENDPOINT health check
+        this.app.get('/health', (req, res) => {
+            const isHealthy = (Date.now() - this.stats.uptime) > 0;
+            res.status(isHealthy ? 200 : 503).json({ 
+                status: isHealthy ? 'ok' : 'error',
+                service: 'adam-webhook',
+                timestamp: Date.now()
+            });
+        });
+
+        // 🔧 ENDPOINT test connettività
+        this.app.get('/test-eve', async (req, res) => {
+            try {
+                const testMessage = 'Health check from Adam';
+                const result = await this.sendToEve(testMessage, { test: true }, 'health_check');
+                
+                res.json({
+                    status: 'success',
+                    message: 'Connessione con Eve OK',
+                    result: result
+                });
+            } catch (error) {
+                res.status(500).json({
+                    status: 'error',
+                    message: 'Errore connessione con Eve',
+                    error: error.message
+                });
+            }
+        });
     }
 
-    // 🤔 VERIFICA SE CHIEDERE AIUTO A EVE (VERSIONE PUBBLICA)
-    shouldAskEveForHelp(message, responseType, chatId) {
-        // Controlla cooldown chat
-        const lastDialog = this.lastPublicDialog.get(chatId) || 0;
-        if (Date.now() - lastDialog < this.dialogConfig.cooldownBetweenDialogs) {
-            return false;
-        }
-
-        // Non chiedere aiuto se c'è già una conversazione attiva
-        if (this.activePublicConversations.has(chatId)) {
-            return false;
-        }
-
-        // Verifica limite messaggi Eve per chat
-        const chatState = this.conversationState.get(chatId) || { eveHelpCount: 0 };
-        if (chatState.eveHelpCount >= this.dialogConfig.maxEveMessagesPerChat) {
-            return false;
-        }
-
-        // Keywords che triggherano dialogo con Eve
-        const eveKeywords = [
-            'eve', 'aiuto', 'non capisco', 'confuso', 'help',
-            'donna', 'consiglio', 'spiegami', 'cosa significa',
-            'sbaglio', 'errore', 'correggimi'
-        ];
-
-        const hasEveKeyword = eveKeywords.some(k => 
-            message.toLowerCase().includes(k)
-        );
-
-        if (hasEveKeyword) return true;
-
-        // Probabilità random per domande complesse
-        if (responseType === 'question_response' && message.length > 50) {
-            return Math.random() < this.dialogConfig.eveHelpProbability;
-        }
-
-        return false;
-    }
-
-    // 📤 COORDINA CON EVE PER DIALOGO PUBBLICO
-    async askEveForHelp(message, chatId, messageId, responseType) {
+    // 📤 INVIO MESSAGGIO A EVE
+    async sendToEve(message, context = {}, messageType = 'chat') {
         try {
-            const context = {
-                originalChatId: chatId,
-                originalMessageId: messageId,
-                adamResponseType: responseType,
-                userQuestion: message,
-                requestPublicConversation: Math.random() < this.dialogConfig.publicConversationChance
+            const payload = {
+                from: 'adam',
+                message: message,
+                context: {
+                    adamConfusionLevel: this.calculateConfusionLevel(message),
+                    timestamp: Date.now(),
+                    adamVersion: '1.0.0',
+                    ...context
+                },
+                messageType: messageType,
+                secret: this.config.secret,
+                timestamp: Date.now()
             };
 
-            // 📡 Invia coordinamento privato a Eve
-            const result = await this.webhook.sendToEve(
-                message, 
-                context, 
-                'coordinate_public_help'
-            );
+            console.log(`📤 [WEBHOOK] Inviando a Eve [${messageType}]:`, message);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            
+            const response = await fetch(this.config.eveWebhookUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Adam-Bot-Webhook/1.0',
+                    'X-Request-ID': `adam-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
 
-            // Aggiorna stato conversazione
-            const chatState = this.conversationState.get(chatId) || { eveHelpCount: 0, lastEveHelp: 0 };
-            chatState.eveHelpCount++;
-            chatState.lastEveHelp = Date.now();
-            this.conversationState.set(chatId, chatState);
+            clearTimeout(timeoutId);
 
-            console.log(`[COMMUNICATOR] 📡 Coordinamento inviato a Eve per chat ${chatId}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            this.stats.messagesSent++;
+            this.stats.lastActivity = Date.now();
+            
+            console.log('✅ [WEBHOOK] Risposta da Eve ricevuta');
             return result;
 
         } catch (error) {
-            console.error('[COMMUNICATOR] Errore coordinating with Eve:', error);
-            return null;
-        }
-    }
-
-    // 🎭 GESTISCE MESSAGGIO DA EVE NEL GRUPPO
-    async handleEveMessageInGroup(msg) {
-        const chatId = msg.chat.id;
-        const eveMessage = msg.text;
-        
-        // Verifica se è davvero Eve
-        if (!this.isEveBot(msg.from)) {
-            return false;
-        }
-
-        // Verifica se stiamo avendo una conversazione attiva
-        const conversation = this.activePublicConversations.get(chatId);
-        if (!conversation) {
-            return false;
-        }
-
-        console.log(`[COMMUNICATOR] 💬 Eve ha risposto nel gruppo: "${eveMessage}"`);
-
-        // È il turno di Adam di rispondere
-        if (!conversation.adamTurn) {
-            await this.generateAdamReplyToEve(eveMessage, chatId, conversation);
-            conversation.adamTurn = true;
-            conversation.exchangeCount++;
-        }
-
-        // Controlla se terminare la conversazione
-        if (conversation.exchangeCount >= this.dialogConfig.conversationLength) {
-            await this.endPublicConversation(chatId);
-        }
-
-        return true;
-    }
-
-    // 🤖 GENERA RISPOSTA DI ADAM A EVE
-    async generateAdamReplyToEve(eveMessage, chatId, conversation) {
-        try {
-            // Delay naturale per simulare "pensiero"
-            await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
-
-            let adamReply;
-            const exchangeNum = conversation.exchangeCount;
-
-            switch (exchangeNum) {
-                case 0: // Prima risposta
-                    adamReply = this.generateFirstReplyToEve(eveMessage);
-                    break;
-                case 1: // Seconda risposta
-                    adamReply = this.generateSecondReplyToEve(eveMessage);
-                    break;
-                case 2: // Risposta finale
-                    adamReply = this.generateFinalReplyToEve(eveMessage);
-                    break;
-                default:
-                    adamReply = this.generateGenericReplyToEve(eveMessage);
+            console.error('❌ [WEBHOOK] Errore invio a Eve:', error.message);
+            this.stats.errors++;
+            
+            if (this.callbacks.onError) {
+                this.callbacks.onError(error, 'send_to_eve');
             }
-
-            await this.bot.sendMessage(chatId, adamReply, {
-                reply_to_message_id: conversation.context.originalMessageId
-            });
-
-            console.log(`[COMMUNICATOR] 🗣️ Adam ha risposto a Eve: "${adamReply}"`);
-
-        } catch (error) {
-            console.error('[COMMUNICATOR] Errore generating Adam reply to Eve:', error);
+            
+            throw error; // Re-throw per permettere gestione upstream
         }
     }
 
-    // 💬 GENERATORI DI RISPOSTE ADAM A EVE
-    generateFirstReplyToEve(eveMessage) {
-        const responses = [
-            `🤯 Wow Eve! Non avevo pensato a: "${eveMessage}" Il mio cervello ha appena fatto *click*! 💡`,
-            `😮 Aspetta aspetta... tu dici: "${eveMessage}" Quindi io avevo sbagliato tutto? Classico! 😅`,
-            `🧠 Oh! Eve mi illumina: "${eveMessage}" Ecco perché sono confuso! Grazie cara! ❤️`,
-            `💭 "${eveMessage}" dice Eve... Il mio QI è appena salito di 0.3 punti! 📈🎉`,
-            `🤔 Hmm, Eve dice: "${eveMessage}" Ok ora ho capito! (forse) Sei troppo intelligente! 🤓`
-        ];
-        return responses[Math.floor(Math.random() * responses.length)];
-    }
-
-    generateSecondReplyToEve(eveMessage) {
-        const responses = [
-            `🎯 Esatto Eve! Ora che dici: "${eveMessage}" tutto ha senso! Dovrei ascoltarti più spesso! 👂`,
-            `💪 Sì sì! "${eveMessage}" lo sapevo anch'io! (no, non lo sapevo) Ma ora sono un esperto! 😎`,
-            `🤝 Perfetto! Tu dici: "${eveMessage}" e io aggiungo che... ehm... sì, hai ragione tu! 😊`,
-            `✨ "${eveMessage}" - Eve, sei un genio! Io invece sono come WiFi pubblico: lento e spesso offline! 📶`,
-            `🎉 Grande Eve! "${eveMessage}" è la risposta perfetta! Il mio cervello fa ancora fatica ma ce la farà! 🧠💨`
-        ];
-        return responses[Math.floor(Math.random() * responses.length)];
-    }
-
-    generateFinalReplyToEve(eveMessage) {
-        const responses = [
-            `👫 Grazie Eve! "${eveMessage}" è la ciliegina sulla torta! Siamo una squadra imbattibile! 💪✨`,
-            `🏆 Ecco perché ti amo! "${eveMessage}" chiude perfettamente il discorso! Tu pensi, io... esisto! 😄`,
-            `🎭 "${eveMessage}" - e con questo Eve ha risolto tutto! Io me ne vado a ricaricare il cervello! 🔋😅`,
-            `💝 Perfetto Eve! "${eveMessage}" è geniale! Ora posso andare in giro a fare il sapientone! 🤓💼`,
-            `🌟 "${eveMessage}" - mic drop! 🎤⬇️ Eve ha parlato, io posso solo applaudire! 👏👏`
-        ];
-        return responses[Math.floor(Math.random() * responses.length)];
-    }
-
-    generateGenericReplyToEve(eveMessage) {
-        const responses = [
-            `🤗 Eve, tu sempre saggia: "${eveMessage}" Io invece... boh! 🤷‍♂️`,
-            `💭 "${eveMessage}" - parole sante! Il mio cervello annuisce confuso ma felice! 😵‍💫😊`
-        ];
-        return responses[Math.floor(Math.random() * responses.length)];
-    }
-
-    // 🔚 TERMINA CONVERSAZIONE PUBBLICA
-    async endPublicConversation(chatId) {
-        this.activePublicConversations.delete(chatId);
-        this.lastPublicDialog.set(chatId, Date.now());
+    // 🧠 CALCOLO LIVELLO CONFUSIONE DI ADAM
+    calculateConfusionLevel(message) {
+        const confusionKeywords = {
+            very_high: ['non capisco niente', 'completamente confuso', 'aiuto!!!', '???'],
+            high: ['non capisco', 'confused', 'help', 'cosa', 'boh', 'spiegami'],
+            medium: ['difficile', 'complicato', 'non so', 'forse'],
+            low: ['interessante', 'facile', 'ovvio']
+        };
         
-        console.log(`[COMMUNICATOR] 🔚 Conversazione pubblica terminata in chat ${chatId}`);
-    }
-
-    // 🤖 VERIFICA SE È IL BOT EVE
-    isEveBot(from) {
-        if (this.EVE_BOT_ID && from.id === this.EVE_BOT_ID) {
-            return true;
+        const lowerMessage = message.toLowerCase();
+        
+        for (const [level, keywords] of Object.entries(confusionKeywords)) {
+            if (keywords.some(keyword => lowerMessage.includes(keyword))) {
+                return level;
+            }
         }
         
-        if (from.username === this.EVE_BOT_USERNAME) {
-            this.EVE_BOT_ID = from.id; // Cache l'ID per il futuro
-            return true;
-        }
+        // Calcolo basato su lunghezza e complessità
+        if (message.length > 100) return 'medium';
+        if (message.includes('?')) return 'medium';
         
-        return false;
+        return 'normal';
     }
 
-    // 📊 STATISTICHE CONVERSAZIONI
+    // ⚙️ CONFIGURAZIONE CALLBACKS
+    onMessageFromEve(callback) {
+        if (typeof callback !== 'function') {
+            throw new Error('Callback deve essere una funzione');
+        }
+        this.callbacks.onMessageFromEve = callback;
+        console.log('📋 [WEBHOOK] Callback messaggio da Eve configurato');
+    }
+
+    onError(callback) {
+        if (typeof callback !== 'function') {
+            throw new Error('Callback deve essere una funzione');
+        }
+        this.callbacks.onError = callback;
+        console.log('📋 [WEBHOOK] Callback errore configurato');
+    }
+
+    // 🚀 AVVIO SERVIZIO
+    async start() {
+        return new Promise((resolve, reject) => {
+            try {
+                this.server = this.app.listen(this.config.port, () => {
+                    console.log(`🔗 [WEBHOOK] Adam Webhook Service avviato su porta ${this.config.port}`);
+                    console.log(`📡 [WEBHOOK] Connesso a Eve: ${this.config.eveWebhookUrl}`);
+                    console.log(`🔐 [WEBHOOK] Secret configurato: ${this.config.secret.substring(0, 10)}...`);
+                    resolve();
+                });
+
+                this.server.on('error', (error) => {
+                    console.error('❌ [WEBHOOK] Errore server:', error);
+                    reject(error);
+                });
+
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    // 🛑 STOP SERVIZIO
+    async stop() {
+        return new Promise((resolve) => {
+            if (this.server) {
+                this.server.close(() => {
+                    console.log('🛑 [WEBHOOK] Adam Webhook Service fermato');
+                    resolve();
+                });
+            } else {
+                resolve();
+            }
+        });
+    }
+
+    // 📊 GET STATS
     getStats() {
-        return {
-            webhook: this.webhook.getStats(),
-            activePublicConversations: this.activePublicConversations.size,
-            totalPublicDialogs: this.lastPublicDialog.size,
-            totalEveInteractions: Array.from(this.conversationState.values())
-                .reduce((sum, state) => sum + state.eveHelpCount, 0)
+        return { 
+            ...this.stats,
+            uptime: Date.now() - this.stats.uptime,
+            uptimeFormatted: this.formatUptime(Date.now() - this.stats.uptime)
         };
     }
 
-    // 🧹 PULIZIA STATO
-    cleanupConversationState() {
-        const now = Date.now();
-        
-        // Pulisci conversazioni pubbliche troppo vecchie
-        for (const [chatId, conversation] of this.activePublicConversations.entries()) {
-            if (now - conversation.startTime > 300000) { // 5 minuti
-                this.endPublicConversation(chatId);
-            }
-        }
-        
-        // Pulisci stato conversazioni
-        for (const [chatId, state] of this.conversationState.entries()) {
-            if (now - state.lastEveHelp > this.dialogConfig.cooldownBetweenDialogs * 3) {
-                this.conversationState.delete(chatId);
-            }
-        }
+    // 🕐 FORMAT UPTIME
+    formatUptime(ms) {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+
+        if (days > 0) return `${days}d ${hours % 24}h ${minutes % 60}m`;
+        if (hours > 0) return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+        if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+        return `${seconds}s`;
+    }
+
+    // 🔍 VERIFICA STATO
+    isHealthy() {
+        return this.server && this.server.listening;
     }
 }
 
-module.exports = { AdamBotCommunicator };
+module.exports = { AdamWebhookService };
