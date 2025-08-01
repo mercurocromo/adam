@@ -1,6 +1,13 @@
+// file: bot.js - VERSIONE AGGIORNATA CON COMUNICAZIONE EVE
+
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const Groq = require('groq-sdk');
+
+// 🤝 IMPORTAZIONE MODULI COMUNICAZIONE
+const { AdamWebhookService } = require('./communication/webhookService');
+const { AdamBotCommunicator } = require('./communication/adamBotCommunicator');
+const communicationConfig = require('./communication/config');
 
 // ⚙️ CONFIGURAZIONE
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -9,36 +16,15 @@ const groqApiKey = process.env.GROQ_API_KEY;
 const bot = new TelegramBot(token, { polling: true });
 const groq = new Groq({ apiKey: groqApiKey });
 
-const { AdamWebhookService } = require('./communication/webhookService');
-const { AdamBotCommunicator } = require('./communication/adamBotCommunicator');
-const communicationConfig = require('./communication/config');
-
-const webhookService = new AdamWebhookService({
-    port: communicationConfig.ADAM.WEBHOOK_PORT,
-    eveWebhookUrl: communicationConfig.ADAM.EVE_URL,
-    secret: communicationConfig.WEBHOOK_SECRET
-});
-const communicator = new AdamBotCommunicator(webhookService, bot, memory);
-
-// Avvia servizio webhook
-webhookService.start().catch(error => {
-    console.error('❌ Errore avvio webhook service:', error);
-});
-
 // 🔐 SISTEMA DI CONTROLLO ACCESSI
 class AccessControl {
     constructor() {
-        // ⚠️ MODIFICA QUESTI ID CON I TUOI!
         this.authorizedUsers = new Set([
-            // Aggiungi qui gli ID degli utenti autorizzati per chat private
             5522871082,    // Il tuo ID Telegram principale
-            // Aggiungi altri ID qui...
         ]);
 
-        // Admin che possono gestire autorizzazioni
         this.adminUsers = new Set([
             5522871082,    // Il tuo ID admin principale
-            // Aggiungi altri admin qui...
         ]);
 
         this.pendingRequests = new Map();
@@ -80,7 +66,7 @@ class AccessControl {
 
         console.log(`🚫 Tentativo accesso non autorizzato:`);
         console.log(`   👤 User: ${firstName} (@${username}) - ID: ${userId}`);
-        console.log(`   📊 Tentativi totali: ${attempt.count}`);-
+        console.log(`   📊 Tentativi totali: ${attempt.count}`);
         console.log(`   ⏰ Timestamp: ${new Date(now).toISOString()}`);
     }
 
@@ -117,7 +103,7 @@ class AccessControl {
     }
 }
 
-// 🎯 SISTEMA DI RICONOSCIMENTO MESSAGGI AVANZATO
+// 🎯 SISTEMA DI RICONOSCIMENTO MESSAGGI
 class MessageRecognition {
     constructor() {
         this.greetingPatterns = [
@@ -315,9 +301,16 @@ const accessControl = new AccessControl();
 const messageRecognition = new MessageRecognition();
 const memory = new ConversationMemory();
 
+// 🤝 INIZIALIZZAZIONE COMUNICAZIONE CON EVE
+const webhookService = new AdamWebhookService({
+    port: communicationConfig.ADAM.WEBHOOK_PORT,
+    eveWebhookUrl: communicationConfig.ADAM.EVE_URL,
+    secret: communicationConfig.WEBHOOK_SECRET
+});
+
+const communicator = new AdamBotCommunicator(webhookService, bot, memory);
+
 // 🤖 SYSTEM PROMPT PRINCIPALE
-// 🤖 SYSTEM PROMPT MIGLIORATO - ADAM SPIRITOSO
-// 🤖 SYSTEM PROMPT MIGLIORATO - PIÙ DIRETTO E STUPIDO
 const SYSTEM_PROMPT = `Sei Adam, un maschio incredibilmente stupido, goffo e confuso che vive di stereotipi maschili.
 
 REGOLE IMPORTANTI:
@@ -353,8 +346,7 @@ EXAMPLES:
 
 Rispondi come Adam: stupido, diretto, spiritoso ma breve!`;
 
-// 🎭 SISTEMA DI PROMPT CONTESTUALI SPIRITOSI
-// 🎭 PROMPT CONTESTUALI MIGLIORATI - PIÙ DIRETTI
+// 🎭 SISTEMA DI PROMPT CONTESTUALI
 function getContextualPrompt(responseType, originalMessage) {
     const rules = `NON usare virgolette doppie. Risposte brevi (max 2 frasi). Emoji max 3.`;
     
@@ -385,7 +377,7 @@ Battute brevi, logica assurda, sempre confuso ma simpatico!`;
 }
 
 // 🤖 FUNZIONE PRINCIPALE GROQ
-async function getRispostaGroq(messaggioUtente, chatId, isReply = false, responseType = 'standard_response', messageId = null) {
+async function getRispostaGroq(messaggioUtente, chatId, isReply = false, responseType = 'standard_response') {
     try {
         console.log(`🤖 Generando ${isReply ? 'reply' : responseType} per: "${messaggioUtente}"`);
         
@@ -421,17 +413,12 @@ async function getRispostaGroq(messaggioUtente, chatId, isReply = false, respons
             top_p: 0.95
         });
 
-        const risposta = completion.choices[0]?.message?.content?.trim();
-        
+        const risposta = completion.choices[0]?.message?.content?.trim();        
         if (!risposta) {
             return getFallbackResponse(isReply, responseType);
         }
 
         console.log(`💬 ${responseType} generata: "${risposta}"`);
-        if (communicator.shouldAskEveForHelp(messaggioUtente, responseType, chatId)) {
-            console.log('🆘 Adam chiede aiuto a Eve...');
-            await communicator.askEveForHelp(messaggioUtente, chatId, messageId, responseType);
-        }
         return risposta;
 
     } catch (error) {
@@ -441,7 +428,6 @@ async function getRispostaGroq(messaggioUtente, chatId, isReply = false, respons
 }
 
 // 🔄 RISPOSTE DI FALLBACK SPIRITOSE
-// 🔄 FALLBACK PIÙ DIRETTI E STUPIDI
 function getFallbackResponse(isReply = false, responseType = 'standard_response') {
     const fallbacksByType = {
         greeting_response: [
@@ -484,7 +470,6 @@ function getFallbackResponse(isReply = false, responseType = 'standard_response'
 function logInteraction(type, recognition, userId, username, chatId, message, response, responseTime) {
     const timestamp = new Date().toLocaleString('it-IT');
     
-    // Log semplificato per console
     if (recognition && recognition.isCall) {
         console.log(`🎯 ${type.toUpperCase()} | ${recognition.type} (${(recognition.confidence * 100).toFixed(0)}%) | ${username} | ${responseTime}ms`);
         console.log(`📩 "${message}" → 🤖 "${response}"`);
@@ -598,26 +583,6 @@ function shouldRespondToReply(msg) {
            memory.isBotMessage(msg.reply_to_message.message_id);
 }
 
-// 📊 LOGGING AVANZATO
-function logInteraction(type, recognition, userId, username, chatId, message, response, responseTime) {
-    const timestamp = new Date().toISOString();
-    console.log('\n=== 📊 INTERACTION LOG ===');
-    console.log(`⏰ Time: ${timestamp}`);
-    console.log(`🎯 Type: ${type.toUpperCase()}`);
-    
-    if (recognition) {
-        console.log(`🔍 Recognition: ${recognition.type} (confidence: ${(recognition.confidence * 100).toFixed(0)}%)`);
-    }
-    
-    console.log(`👤 User: ${username} (${userId})`);
-    console.log(`💬 Chat: ${chatId}`);
-    console.log(`📩 Input: "${message}"`);
-    console.log(`🤖 Response: "${response}"`);
-    console.log(`⚡ Response Time: ${responseTime}ms`);
-    console.log(`🧠 Memory: ${memory.getConversationHistory(chatId).length} messages`);
-    console.log('========================\n');
-}
-
 // 🎛️ COMANDI ADMIN
 bot.onText(/\/authorize (\d+)/, async (msg, match) => {
     const chatId = msg.chat.id;
@@ -670,12 +635,19 @@ bot.onText(/\/status/, async (msg) => {
 
     const stats = accessControl.getStats();
     const pending = accessControl.getPendingRequests();
+    const commStats = communicator.getStats();
 
     let statusMessage = `📊 **Status Bot Adam**
 
 👥 **Utenti autorizzati:** ${stats.authorizedUsers}
 ⏳ **Richieste pending:** ${stats.pendingRequests}  
 🚫 **Tentativi totali:** ${stats.totalAttempts}
+
+🤝 **Comunicazione con Eve:**
+📡 **Webhook:** ${commStats.webhook.messagesSent} inviati, ${commStats.webhook.messagesReceived} ricevuti
+🎭 **Conversazioni pubbliche:** ${commStats.conversations.totalPublic}
+💬 **Chat attive:** ${commStats.conversations.active}
+👩 **Eve riconosciuta:** ${commStats.eveBot.identified ? '✅' : '❌'}
 
 `;
 
@@ -705,15 +677,71 @@ bot.onText(/\/list/, async (msg) => {
     await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
 });
 
-// 🚀 GESTIONE MESSAGGI PRINCIPALE
+// 🤝 COMANDO DEBUG COMUNICAZIONE EVE
+bot.onText(/\/debug_eve/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+
+    if (!accessControl.isAdmin(userId)) {
+        await bot.sendMessage(chatId, "❌ Non hai i permessi per questo comando.");
+        return;
+    }
+
+    const debugInfo = communicator.getDebugInfo();
+    const webhookStats = webhookService.getStats();
+
+    let debugMessage = `🔍 **Debug Comunicazione Eve**
+
+**📡 Webhook Service:**
+⬆️ Inviati: ${webhookStats.messagesSent}
+⬇️ Ricevuti: ${webhookStats.messagesReceived}
+❌ Errori: ${webhookStats.errors}
+⏰ Uptime: ${webhookStats.uptimeFormatted}
+
+**🎭 Conversazioni Attive (${debugInfo.activeConversations.length}):**
+`;
+
+    debugInfo.activeConversations.forEach(conv => {
+        debugMessage += `• Chat ${conv.chatId}: ${conv.exchanges} scambi, Stage: ${conv.stage}\n`;
+    });
+
+    debugMessage += `\n**⏰ Cooldown (${debugInfo.cooldowns.length}):**\n`;
+    debugInfo.cooldowns.forEach(cd => {
+        const remaining = Math.round(cd.cooldownRemaining / 1000);
+        debugMessage += `• Chat ${cd.chatId}: ${remaining}s rimanenti\n`;
+    });
+
+    await bot.sendMessage(chatId, debugMessage, { parse_mode: 'Markdown' });
+});
+
+// 🚀 GESTIONE MESSAGGI PRINCIPALE - VERSIONE COMPLETA
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const username = msg.from.username || msg.from.first_name || 'Unknown';
     const testo = msg.text;
 
-    // Ignora messaggi del bot e comandi
-    if (msg.from.is_bot || (testo && testo.startsWith('/'))) return;
+    // Ignora messaggi del bot stesso e comandi, MA NON Eve
+    if (msg.from.is_bot && !communicator.isEveBot(msg.from)) return;
+    if (testo && testo.startsWith('/')) return;
+
+    // 👩 GESTIONE MESSAGGI DA EVE BOT
+    if (msg.from.is_bot && communicator.isEveBot(msg.from)) {
+        console.log('👩 [MAIN] Messaggio ricevuto da Eve nel gruppo');
+        try {
+            const handled = await communicator.handleEveMessageInGroup(msg);
+            if (handled) {
+                console.log('✅ [MAIN] Messaggio di Eve gestito dal communicator');
+                return; // Eve ha gestito la conversazione
+            } else {
+                console.log('ℹ️ [MAIN] Messaggio di Eve non parte di una conversazione attiva');
+                return; // Ignora comunque messaggi di Eve non gestiti
+            }
+        } catch (error) {
+            console.error('❌ [MAIN] Errore handling Eve message:', error);
+            return;
+        }
+    }
 
     // 🛡️ CONTROLLO ACCESSI
     const accessCheck = checkAccess(msg);
@@ -764,6 +792,20 @@ bot.on('message', async (msg) => {
             memory.addMessage(chatId, 'user', testo);
         }
         
+        // 🤝 CONTROLLO COMUNICAZIONE CON EVE - NUOVO SISTEMA
+        let willCallEve = false;
+        if (communicator.shouldAskEveForHelp(messaggioPerAI, responseType, chatId)) {
+            console.log('🆘 [MAIN] Adam coordina con Eve per aiuto pubblico...');
+            try {
+                await communicator.askEveForHelp(messaggioPerAI, chatId, msg.message_id, responseType);
+                willCallEve = true;
+                console.log('✅ [MAIN] Coordinamento con Eve inviato');
+            } catch (error) {
+                console.error('❌ [MAIN] Errore coordinamento con Eve:', error);
+            }
+        }
+        
+        // Adam risponde comunque, poi Eve potrebbe aggiungere il suo contributo
         const risposta = await getRispostaGroq(
             messaggioPerAI, 
             chatId, 
@@ -778,6 +820,10 @@ bot.on('message', async (msg) => {
         memory.addMessage(chatId, 'assistant', risposta, sentMessage.message_id);
 
         const responseTime = Date.now() - startTime;
+        
+        // Log con info su Eve
+        console.log(`🎭 [MAIN] Eve coinvolta: ${willCallEve ? 'Sì' : 'No'}`);
+        
         logInteraction(
             interactionType, 
             messageAnalysis, 
@@ -790,7 +836,7 @@ bot.on('message', async (msg) => {
         );
 
     } catch (error) {
-        console.error(`❌ Errore ${interactionType}:`, error);
+        console.error(`❌ [MAIN] Errore ${interactionType}:`, error);
         
         const errorMsg = isReply ?
             "Il mio cervello ha fatto tilt! 🤯" :
@@ -802,52 +848,77 @@ bot.on('message', async (msg) => {
     }
 });
 
-// 🧹 PULIZIA AUTOMATICA MEMORIA
+// 🧹 PULIZIA AUTOMATICA MEMORIA + COMUNICAZIONE
 setInterval(() => {
     memory.clearOldConversations();
-    console.log('🧹 Pulizia memoria conversazioni completata');
+    communicator.cleanupConversationState();
+    console.log('🧹 [CLEANUP] Pulizia memoria e stato conversazioni completata');
 }, 10 * 60 * 1000);
 
-// 📈 HEALTH CHECK
+// 📈 HEALTH CHECK MIGLIORATO
 async function healthCheck() {
     try {
         const botInfo = await bot.getMe();
         const activeChats = memory.conversations.size;
         const totalMessages = Array.from(memory.conversations.values())
             .reduce((sum, conv) => sum + conv.length, 0);
+        
+        const webhookHealthy = webhookService.isHealthy();
+        const commStats = communicator.getStats();
             
-        console.log('✅ Bot Health Check OK');
-        console.log(`🤖 Nome: ${botInfo.first_name}`);
-        console.log(`📱 Username: @${botInfo.username}`);
-        console.log(`💬 Chat attive: ${activeChats}`);
-        console.log(`🧠 Messaggi in memoria: ${totalMessages}`);
+        console.log('✅ [HEALTH] Bot Health Check OK');
+        console.log(`🤖 [HEALTH] Nome: ${botInfo.first_name}`);
+        console.log(`📱 [HEALTH] Username: @${botInfo.username}`);
+        console.log(`💬 [HEALTH] Chat attive: ${activeChats}`);
+        console.log(`🧠 [HEALTH] Messaggi in memoria: ${totalMessages}`);
+        console.log(`📡 [HEALTH] Webhook: ${webhookHealthy ? 'OK' : 'ERROR'}`);
+        console.log(`🎭 [HEALTH] Conversazioni Eve: ${commStats.conversations.totalPublic}`);
+        
         return true;
     } catch (error) {
-        console.error('❌ Bot Health Check Failed:', error.message);
+        console.error('❌ [HEALTH] Bot Health Check Failed:', error.message);
         return false;
     }
 }
 
-// 🚀 AVVIO BOT
+// 🚀 AVVIO BOT COMPLETO
 async function startBot() {
-    console.log('🚀 Avviando Adam Bot Completo con Groq AI...');
+    console.log('🚀 [STARTUP] Avviando Adam Bot Completo con Groq AI e comunicazione Eve...');
     
     if (!token || !groqApiKey) {
-        console.error('❌ Token mancanti nel .env');
+        console.error('❌ [STARTUP] Token mancanti nel .env');
         console.error('   TELEGRAM_BOT_TOKEN=' + (token ? 'OK' : 'MANCANTE'));
         console.error('   GROQ_API_KEY=' + (groqApiKey ? 'OK' : 'MANCANTE'));
         process.exit(1);
     }
 
     try {
+        // 1. Health check bot base
         const isHealthy = await healthCheck();
         if (!isHealthy) {
-            console.error('❌ Bot non funzionante');
+            console.error('❌ [STARTUP] Bot base non funzionante');
             process.exit(1);
         }
 
-        console.log('\n✅ 🤖 ADAM BOT AVVIATO COMPLETAMENTE! 🤖 ✅');
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        // 2. Avvia servizio webhook per comunicazione con Eve
+        console.log('🔗 [STARTUP] Avviando servizio webhook...');
+        await webhookService.start();
+        console.log('✅ [STARTUP] Servizio webhook avviato');
+
+        // 3. Test iniziale comunicazione Eve (opzionale)
+        setTimeout(async () => {
+            try {
+                console.log('🔧 [STARTUP] Test comunicazione con Eve...');
+                await webhookService.sendToEve('Hello Eve, Adam is online!', { test: true }, 'startup_test');
+                console.log('✅ [STARTUP] Test comunicazione Eve OK');
+            } catch (error) {
+                console.warn('⚠️ [STARTUP] Test comunicazione Eve fallito:', error.message);
+                console.warn('⚠️ [STARTUP] Eve potrebbe non essere ancora online');
+            }
+        }, 3000);
+
+        console.log('\n✅ 🤖 ADAM BOT CON EVE COMMUNICATION AVVIATO! 🤖 ✅');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('🎯 FUNZIONALITÀ ATTIVE:');
         console.log('   📢 Riconoscimento avanzato messaggi');
         console.log('   💬 Risposte contestuali con Groq AI'); 
@@ -855,6 +926,8 @@ async function startBot() {
         console.log('   🔐 Controllo accessi per chat private');
         console.log('   ⚡ Rate limiting intelligente');
         console.log('   📊 Logging e monitoring completo');
+        console.log('   🤝 Comunicazione webhook con Eve');
+        console.log('   🎭 Dialoghi pubblici intelligenti Adam-Eve');
         console.log('');
         console.log('🎮 MODI PER CHIAMARE ADAM:');
         console.log('   • "adam come stai?"');
@@ -863,50 +936,81 @@ async function startBot() {
         console.log('   • "senti adam..."');
         console.log('   • Reply ai suoi messaggi');
         console.log('');
+        console.log('👫 COMUNICAZIONE EVE:');
+        console.log(`   🔗 Webhook Adam: http://localhost:${communicationConfig.ADAM.WEBHOOK_PORT}`);
+        console.log(`   📡 Eve URL: ${communicationConfig.ADAM.EVE_URL}`);
+        console.log(`   👩 Bot Eve: @${communicationConfig.EVE.BOT_USERNAME}`);
+        console.log('');
         console.log('🛠️ COMANDI ADMIN:');
         console.log('   /authorize <user_id> - Autorizza utente');
         console.log('   /revoke <user_id> - Revoca accesso');
-        console.log('   /status - Mostra statistiche');
+        console.log('   /status - Mostra statistiche complete');
         console.log('   /list - Lista utenti autorizzati');
+        console.log('   /debug_eve - Debug comunicazione Eve');
         console.log('');
         console.log(`👥 Utenti autorizzati: ${accessControl.getStats().authorizedUsers}`);
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
-        // Health check ogni 5 minuti
+        // Health check periodico
         setInterval(healthCheck, 5 * 60 * 1000);
         
+        // Stats periodiche communicator
+        setInterval(() => {
+            const stats = communicator.getStats();
+            console.log(`📊 [STATS] Conversazioni Eve: ${stats.conversations.totalPublic} pubbliche, ${stats.conversations.active} attive`);
+        }, 10 * 60 * 1000);
+        
     } catch (error) {
-        console.error('❌ Errore critico avvio bot:', error);
+        console.error('❌ [STARTUP] Errore critico avvio bot:', error);
         process.exit(1);
     }
 }
 
 // 🛠️ GESTIONE ERRORI GLOBALI
 bot.on('error', (error) => {
-    console.error('❌ Errore Bot Telegram:', error);
+    console.error('❌ [BOT] Errore Bot Telegram:', error);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Unhandled Rejection:', reason);
+    console.error('❌ [PROCESS] Unhandled Rejection:', reason);
 });
 
 process.on('uncaughtException', (error) => {
-    console.error('❌ Uncaught Exception:', error);
+    console.error('❌ [PROCESS] Uncaught Exception:', error);
     process.exit(1);
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
-    console.log('\n🛑 Arresto Adam Bot...');
+process.on('SIGINT', async () => {
+    console.log('\n🛑 [SHUTDOWN] Arresto Adam Bot...');
+    
+    try {
+        await webhookService.stop();
+        console.log('✅ [SHUTDOWN] Webhook service fermato');
+    } catch (error) {
+        console.error('❌ [SHUTDOWN] Errore stop webhook:', error);
+    }
+    
     bot.stopPolling();
     process.exit(0);
 });
 
-process.on('SIGTERM', () => {
-    console.log('\n🛑 Arresto Adam Bot...');
+process.on('SIGTERM', async () => {
+    console.log('\n🛑 [SHUTDOWN] Arresto Adam Bot...');
+    
+    try {
+        await webhookService.stop();
+        console.log('✅ [SHUTDOWN] Webhook service fermato');
+    } catch (error) {
+        console.error('❌ [SHUTDOWN] Errore stop webhook:', error);
+    }
+    
     bot.stopPolling();
     process.exit(0);
 });
 
 // 🎬 AVVIO FINALE
 startBot();
+
+
+                                       
